@@ -1,0 +1,261 @@
+@page "/it/assets"
+@page "/hr/assets"
+@page "/employee/assets"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Assets - BELMS</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Assets</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Track hardware and equipment allocation.</MudText>
+    </div>
+    @if (_canEdit)
+    {
+        <MudStack Row="true" Spacing="2">
+            <MudButton StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Outlined" OnClick="ExportAsync">Export</MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">New Asset</MudButton>
+        </MudStack>
+    }
+</MudStack>
+
+<MudPaper Class="pa-2">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    <MudTable Items="_assets" Hover="true" Dense="true" Filter="Filter" Breakpoint="Breakpoint.Sm">
+        <ToolBarContent>
+            <MudTextField @bind-Value="_search" Placeholder="Search assets..."
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" Clearable="true" Class="mt-0" />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Serial</MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh>Availability</MudTh>
+            @if (_canEdit)
+            {
+                <MudTh Style="text-align:right">Actions</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.AssetName</MudTd>
+            <MudTd DataLabel="Serial">@context.SerialNumber</MudTd>
+            <MudTd DataLabel="Type">@context.AssetType</MudTd>
+            <MudTd DataLabel="Availability">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsAvailable ? Color.Success : Color.Default)">
+                    @(context.IsAvailable ? "Available" : "Assigned")
+                </MudChip>
+            </MudTd>
+            @if (_canEdit)
+            {
+                <MudTd DataLabel="Actions" Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" />
+                </MudTd>
+            }
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4" Color="Color.Secondary">No assets found.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<MudDialog @bind-Visible="_dialogOpen" Options="_dialogOptions">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-3">@(_isNew ? "New Asset" : "Edit Asset")</MudText>
+        <MudTextField @bind-Value="_model.AssetName" Label="Asset Name" Required="true" />
+        @if (_isNew)
+        {
+            <MudTextField @bind-Value="_model.SerialNumber" Label="Serial Number" Required="true" Class="mt-2" />
+        }
+        <MudSelect @bind-Value="_model.AssetType" Label="Type" Class="mt-2">
+            @foreach (var type in AssetTypes.All)
+            {
+                <MudSelectItem Value="@type">@type</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSwitch @bind-Value="_model.IsAvailable" Label="Available" Color="Color.Success" Class="mt-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _dialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">
+            @(_saving ? "Saving..." : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private IAssetApiClient Assets { get; set; } = default!;
+    [Inject] private ICurrentUserService CurrentUser { get; set; } = default!;
+    [Inject] private IFileDownloadService Downloader { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+
+    private List<AssetDto> _assets = [];
+    private string _search = string.Empty;
+    private bool _loading = true;
+    private bool _canEdit;
+
+    private bool _dialogOpen;
+    private bool _isNew;
+    private bool _saving;
+    private Guid _editingId;
+
+    private readonly DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, NoHeader = true };
+    private AssetFormModel _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var role = CurrentUser.Role;
+        _canEdit = role is BelmsRoles.It or BelmsRoles.Hr or BelmsRoles.Admin;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Assets.GetAllAsync();
+        _loading = false;
+
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Failed to load assets.", Severity.Error);
+            _assets = [];
+            return;
+        }
+
+        _assets = result.Data;
+    }
+
+    private bool Filter(AssetDto asset)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+        {
+            return true;
+        }
+
+        return asset.AssetName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || asset.SerialNumber.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || asset.AssetType.Contains(_search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OpenCreate()
+    {
+        _isNew = true;
+        _model = new AssetFormModel { AssetType = "Laptop", IsAvailable = true };
+        _dialogOpen = true;
+    }
+
+    private void OpenEdit(AssetDto asset)
+    {
+        _isNew = false;
+        _editingId = asset.Id;
+        _model = new AssetFormModel
+        {
+            AssetName = asset.AssetName,
+            SerialNumber = asset.SerialNumber,
+            AssetType = asset.AssetType,
+            IsAvailable = asset.IsAvailable
+        };
+        _dialogOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            if (_isNew)
+            {
+                var request = new CreateAssetRequest
+                {
+                    AssetName = _model.AssetName,
+                    SerialNumber = _model.SerialNumber,
+                    AssetType = _model.AssetType,
+                    IsAvailable = _model.IsAvailable
+                };
+                var result = await Assets.CreateAsync(request);
+                if (!result.Success)
+                {
+                    Snackbar.Add(result.Error ?? "Could not create asset.", Severity.Error);
+                    return;
+                }
+                Snackbar.Add("Asset created.", Severity.Success);
+            }
+            else
+            {
+                var request = new UpdateAssetRequest
+                {
+                    AssetName = _model.AssetName,
+                    AssetType = _model.AssetType,
+                    IsAvailable = _model.IsAvailable
+                };
+                var result = await Assets.UpdateAsync(_editingId, request);
+                if (!result.Success)
+                {
+                    Snackbar.Add(result.Error ?? "Could not update asset.", Severity.Error);
+                    return;
+                }
+                Snackbar.Add("Asset updated.", Severity.Success);
+            }
+
+            _dialogOpen = false;
+            await LoadAsync();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync(AssetDto asset)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete asset",
+            $"Remove {asset.AssetName} ({asset.SerialNumber})?",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var result = await Assets.DeleteAsync(asset.Id);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Could not delete asset.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Asset removed.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task ExportAsync()
+    {
+        var result = await Assets.ExportAsync();
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Export failed.", Severity.Error);
+            return;
+        }
+
+        await Downloader.SaveAsync("assets.xlsx", result.Data);
+    }
+
+    private sealed class AssetFormModel
+    {
+        public string AssetName { get; set; } = string.Empty;
+        public string SerialNumber { get; set; } = string.Empty;
+        public string AssetType { get; set; } = "Laptop";
+        public bool IsAvailable { get; set; } = true;
+    }
+}

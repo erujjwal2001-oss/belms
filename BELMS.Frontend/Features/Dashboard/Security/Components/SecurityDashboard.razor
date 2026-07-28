@@ -1,0 +1,122 @@
+@using BELMS.Frontend.Features.Dashboard.Core
+
+@using BELMS.Frontend.Features.Dashboard.Security.Services
+
+@using BELMS.Frontend.Features.Dashboard.Shared.Models
+
+
+
+@if (_model is null)
+
+{
+
+    <DashboardLoadingPlaceholder />
+
+}
+
+else
+
+{
+
+    <DashboardPageHeader Title="Security Dashboard" Subtitle="@_model.WelcomeMessage" Role="@BelmsRoles.Security" />
+
+    <DashboardStatGrid Stats="@_model.Stats" Role="@BelmsRoles.Security" />
+
+
+
+    <MudGrid Spacing="3" Class="mt-1">
+
+        <MudItem xs="12" lg="6">
+
+            <PendingTasksTable Title="Security Tasks" Items="@_model.PendingTasks" />
+
+        </MudItem>
+
+        <MudItem xs="12" lg="6">
+
+            <DataTable TItem="AccessReviewItem" Title="Access Review" Items="@_model.AccessReviews">
+
+                <HeaderContent>
+
+                    <MudTh>User</MudTh>
+
+                    <MudTh>Resource</MudTh>
+
+                    <MudTh>Status</MudTh>
+
+                    <MudTh>Due</MudTh>
+
+                </HeaderContent>
+
+                <RowTemplate Context="item">
+
+                    <MudTd DataLabel="User">@item.User</MudTd>
+
+                    <MudTd DataLabel="Resource">@item.Resource</MudTd>
+
+                    <MudTd DataLabel="Status">
+
+                        <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(item.Status)">@item.Status</MudChip>
+
+                    </MudTd>
+
+                    <MudTd DataLabel="Due">@item.DueDate.ToString("dd MMM yyyy")</MudTd>
+
+                </RowTemplate>
+
+            </DataTable>
+
+        </MudItem>
+
+    </MudGrid>
+
+
+
+    <MudGrid Spacing="3" Class="mt-1">
+
+        <MudItem xs="12">
+
+            <ActivityFeed Items="@_model.RecentActivity" />
+
+        </MudItem>
+
+    </MudGrid>
+
+}
+
+
+
+@code {
+
+    [Inject]
+
+    private ISecurityDashboardService DashboardService { get; set; } = default!;
+
+
+
+    private Security.Models.SecurityDashboardModel? _model;
+
+
+
+    protected override async Task OnInitializedAsync() =>
+
+        _model = await DashboardService.GetDashboardAsync();
+
+
+
+    private static Color GetStatusColor(string status) => status switch
+
+    {
+
+        "Pending" => Color.Warning,
+
+        "Approved" => Color.Success,
+
+        "Escalated" => Color.Error,
+
+        _ => Color.Default
+
+    };
+
+}
+

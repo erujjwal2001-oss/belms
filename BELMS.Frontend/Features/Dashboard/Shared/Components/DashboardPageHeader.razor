@@ -1,0 +1,28 @@
+@using BELMS.Frontend.Theme
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start" Class="mb-4" Spacing="2">
+    <div>
+        <MudText Typo="Typo.h4">@Title</MudText>
+        @if (!string.IsNullOrWhiteSpace(Subtitle))
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@Subtitle</MudText>
+        }
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Role))
+    {
+        <MudChip T="string" Size="Size.Small" Style="@($"background-color: {RoleAccents.GetAccent(Role)}; color: white")">
+            @Role
+        </MudChip>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public string? Role { get; set; }
+}

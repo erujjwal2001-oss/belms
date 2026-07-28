@@ -1,0 +1,112 @@
+@using BELMS.Frontend.Features.Authentication.Services
+@using BELMS.Frontend.Models
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+
+@inject IFAuthenticationService AuthenticationService
+@inject NavigationManager Navigation
+
+<div class="login-form">
+    <h2 class="login-form__title">Sign in</h2>
+    <p class="login-form__subtitle">Use your BELMS credentials to continue.</p>
+
+    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="login-form__error" role="alert">
+            @_errorMessage
+        </div>
+    }
+
+    <EditForm Model="LoginModel"
+              OnValidSubmit="HandleLoginAsync"
+              FormName="loginForm">
+
+        <DataAnnotationsValidator />
+
+        <label class="login-form__label" for="email">Email</label>
+        <InputText id="email"
+                   class="login-form__input w-100"
+                   @bind-Value="LoginModel.Email"
+                   autocomplete="username" />
+
+        <ValidationMessage For="@(() => LoginModel.Email)"
+                           class="login-form__error" />
+
+        <label class="login-form__label" for="password">Password</label>
+        <InputText id="password"
+                   type="password"
+                   class="login-form__input"
+                   @bind-Value="LoginModel.Password"
+                   autocomplete="current-password" />
+
+        <ValidationMessage For="@(() => LoginModel.Password)"
+                           class="login-form__error" />
+
+        <button type="submit"
+                class="login-form__btn">
+            Sign in
+        </button>
+
+    </EditForm>
+
+    <div class="login-form__hint">
+        <p>Demo accounts (seeded):</p>
+        <ul>
+            <li>Admin: admin@laxmisunrise.com / Admin@123</li>
+            <li>HR: hr@laxmisunrise.com / Hr@12345</li>
+            <li>Manager: manager@laxmisunrise.com / Manager@123</li>
+            <li>IT: it@laxmisunrise.com / It@12345</li>
+            <li>Security: security@laxmisunrise.com / Security@123</li>
+            <li>Employee: sign in as any user, then use Dev role preview → Employee</li>
+        </ul>
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    [CascadingParameter]
+    public HttpContext? HttpContext { get; set; }
+
+    [SupplyParameterFromForm]
+    public  LoginRequest LoginModel { get; set; } = new();
+
+    private string? _errorMessage;
+
+
+    protected override void OnParametersSet()
+    {
+        _errorMessage = ErrorMessage;
+    }
+
+
+    private async Task HandleLoginAsync()
+    {
+        Navigation.NavigateTo(
+         $"/auth/login?email={Uri.EscapeDataString(LoginModel.Email)}&password={Uri.EscapeDataString(LoginModel.Password)}",
+         true);
+        // _errorMessage = null;
+
+        // if (HttpContext == null)
+        // {
+        //     _errorMessage = "Unable to create authentication session.";
+        //     return;
+        // }
+        // var result = await AuthenticationService.LoginAsync(LoginModel);
+        // if (!result.Success || result.Principal == null)
+        // {
+        //     _errorMessage = "Invalid email or password.";
+        //     return;
+        // }
+        // await HttpContext.SignInAsync("Cookies", 
+        // result.Principal,
+        // new AuthenticationProperties
+        // {
+        //     IsPersistent=true
+        // }
+        // );
+        // Navigation.NavigateTo( "/dashboard",replace: true);
+    }
+}

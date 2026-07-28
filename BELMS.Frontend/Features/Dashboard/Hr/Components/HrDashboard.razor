@@ -1,0 +1,112 @@
+@using BELMS.Frontend.Features.Dashboard.Core
+
+@using BELMS.Frontend.Features.Dashboard.Hr.Services
+
+
+@if (_model is null)
+
+{
+
+    <DashboardLoadingPlaceholder />
+
+}
+
+else
+
+{
+
+    <DashboardPageHeader Title="HR Dashboard" Subtitle="@_model.WelcomeMessage" Role="@BelmsRoles.Hr" />
+
+    <DashboardStatGrid Stats="@_model.Stats" Role="@BelmsRoles.Hr" />
+
+
+
+    <MudGrid Spacing="6" Class="mt-1">
+
+        <MudItem xs="12" lg="6" Class="d-flex">
+            <MudPaper Class="pa-4 d-flex flex-column"
+                      Style="width:100%; height:350px;">
+
+                <MudStack Row="true"
+                          Justify="Justify.SpaceBetween"
+                          AlignItems="AlignItems.Center"
+                          Class="mb-3">
+
+                    <MudText Typo="Typo.h6">
+                        Pending Onboardings
+                    </MudText>
+
+                    
+
+                    </MudStack>
+
+                <div style="flex:3; overflow:auto;">
+                    <PendingTasksTable Title=""
+                                       Items="@_model.PendingTasks" />
+                </div>
+                <br />
+                <MudStack Row="true" Spacing="6">
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               Size="Size.Large">
+                        Create New
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Primary"
+                               Size="Size.Large">
+                        View All
+                    </MudButton>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+
+
+        <MudItem xs="12" lg="6" Class="d-flex">
+            <MudPaper Class="pa-4 d-flex flex-column  align-center justify-center"
+                      Style="width:100%; height:350px;" >
+
+                <SummaryDonutChart Data="@_model.PrimaryChart"
+                                   Role="@BelmsRoles.Hr" />
+
+            </MudPaper>
+        </MudItem>
+
+    </MudGrid>
+
+
+
+    <MudGrid Spacing="3" Class="mt-1">
+
+        <MudItem xs="12">
+
+            <QuickActionsPanel Actions="@_model.QuickActions" />
+
+        </MudItem>
+
+    </MudGrid>
+
+}
+
+
+
+@code {
+
+    [Inject]
+
+    private IHrDashboardService DashboardService { get; set; } = default!;
+
+
+
+    private Hr.Models.HrDashboardModel? _model;
+
+
+
+    protected override async Task OnInitializedAsync() =>
+
+        _model = await DashboardService.GetDashboardAsync();
+
+}
+

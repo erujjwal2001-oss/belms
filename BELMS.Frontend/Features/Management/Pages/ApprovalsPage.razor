@@ -1,0 +1,135 @@
+@page "/manager/approvals"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Approvals - BELMS</PageTitle>
+
+<MudStack Class="mb-4">
+    <MudText Typo="Typo.h4">Pending Approvals</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">Workflow tasks awaiting your decision.</MudText>
+</MudStack>
+
+<MudPaper Class="pa-2">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    <MudTable Items="_instances" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Workflow</MudTh>
+            <MudTh>Current Step</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Started</MudTh>
+            <MudTh Style="text-align:right">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Workflow">@context.WorkflowName</MudTd>
+            <MudTd DataLabel="Current Step">@CurrentStepName(context)</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Status</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Started">@context.StartedAt.ToLocalTime().ToString("dd MMM yyyy")</MudTd>
+            <MudTd DataLabel="Actions" Style="text-align:right">
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => OpenAction(context))">Review</MudButton>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4" Color="Color.Secondary">Nothing awaiting your approval.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+<MudDialog @bind-Visible="_dialogOpen" Options="_dialogOptions">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-1">@(_active?.WorkflowName)</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">Step: @(_active is null ? "" : CurrentStepName(_active))</MudText>
+        <MudTextField @bind-Value="_comments" Label="Comments" Lines="3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _dialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Warning" Variant="Variant.Outlined" OnClick="@(() => ActAsync("return"))" Disabled="_saving">Return</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Outlined" OnClick="@(() => ActAsync("reject"))" Disabled="_saving">Reject</MudButton>
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="@(() => ActAsync("approve"))" Disabled="_saving">Approve</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private IWorkflowApiClient Workflows { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+
+    private List<WorkflowInstanceDto> _instances = [];
+    private bool _loading = true;
+
+    private bool _dialogOpen;
+    private bool _saving;
+    private WorkflowInstanceDto? _active;
+    private string? _comments;
+
+    private readonly DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, NoHeader = true };
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Workflows.GetPendingApprovalsAsync();
+        _loading = false;
+
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Failed to load approvals.", Severity.Error);
+            _instances = [];
+            return;
+        }
+
+        _instances = result.Data;
+    }
+
+    private void OpenAction(WorkflowInstanceDto instance)
+    {
+        _active = instance;
+        _comments = null;
+        _dialogOpen = true;
+    }
+
+    private async Task ActAsync(string action)
+    {
+        if (_active is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var request = new CompleteTaskRequest { Comments = _comments };
+            var result = action switch
+            {
+                "approve" => await Workflows.ApproveAsync(_active.Id, request),
+                "reject" => await Workflows.RejectAsync(_active.Id, request),
+                "return" => await Workflows.ReturnAsync(_active.Id, request),
+                _ => ApiResult.Fail("Unknown action.")
+            };
+
+            if (!result.Success)
+            {
+                Snackbar.Add(result.Error ?? "Action failed.", Severity.Error);
+                return;
+            }
+
+            Snackbar.Add($"Task {action}d.", Severity.Success);
+            _dialogOpen = false;
+            await LoadAsync();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string CurrentStepName(WorkflowInstanceDto instance)
+    {
+        var task = instance.Tasks.FirstOrDefault(t => t.StepOrder == instance.CurrentStep);
+        return task?.StepName ?? $"Step {instance.CurrentStep}";
+    }
+}

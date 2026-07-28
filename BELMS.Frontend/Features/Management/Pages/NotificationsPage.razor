@@ -1,0 +1,106 @@
+@page "/notifications"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Notifications - BELMS</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Notifications</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Your latest alerts and updates.</MudText>
+    </div>
+    <MudButton StartIcon="@Icons.Material.Filled.DoneAll" Variant="Variant.Outlined" OnClick="MarkAllAsync" Disabled="_unreadCount == 0">
+        Mark all read
+    </MudButton>
+</MudStack>
+
+<MudPaper Class="pa-2">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_notifications.Count == 0)
+    {
+        <MudText Class="pa-4" Color="Color.Secondary">You have no notifications.</MudText>
+    }
+    else
+    {
+        <MudList T="NotificationDto" Dense="false">
+            @foreach (var item in _notifications)
+            {
+                <MudListItem T="NotificationDto"
+                             Icon="@(item.IsRead ? Icons.Material.Outlined.Notifications : Icons.Material.Filled.Notifications)"
+                             IconColor="@(item.IsRead ? Color.Default : Color.Primary)">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                        <div>
+                            <MudText Typo="Typo.subtitle2">@item.Title</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@item.Message</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@item.CreatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</MudText>
+                        </div>
+                        @if (!item.IsRead)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => MarkReadAsync(item))">
+                                Mark read
+                            </MudButton>
+                        }
+                    </MudStack>
+                </MudListItem>
+                <MudDivider />
+            }
+        </MudList>
+    }
+</MudPaper>
+
+@code {
+    [Inject] private INotificationApiClient Notifications { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+
+    private List<NotificationDto> _notifications = [];
+    private bool _loading = true;
+    private int _unreadCount;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Notifications.GetMyNotificationsAsync();
+        _loading = false;
+
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Failed to load notifications.", Severity.Error);
+            _notifications = [];
+            _unreadCount = 0;
+            return;
+        }
+
+        _notifications = result.Data.OrderByDescending(n => n.CreatedAt).ToList();
+        _unreadCount = _notifications.Count(n => !n.IsRead);
+    }
+
+    private async Task MarkReadAsync(NotificationDto item)
+    {
+        var result = await Notifications.MarkAsReadAsync(item.Id);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Could not update notification.", Severity.Error);
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task MarkAllAsync()
+    {
+        var result = await Notifications.MarkAllAsReadAsync();
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Could not update notifications.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("All notifications marked read.", Severity.Success);
+        await LoadAsync();
+    }
+}

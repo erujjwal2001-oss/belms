@@ -1,0 +1,99 @@
+@inherits LayoutComponentBase
+@using BELMS.Frontend.Features.Dashboard.Core
+@using BELMS.Frontend.Features.Dashboard.Services
+@using BELMS.Frontend.Theme
+@implements IDisposable
+@rendermode InteractiveAuto
+
+<MudLayout Class="@RoleAccents.GetCssClass(_role)">
+    <MudAppBar Color="Color.Inherit" Elevation="1" Fixed="true"  Style="@($"  border-bottom: 2px solid {RoleAccents.GetAccent(_role)}")">
+        <MudIconButton Icon="@(_drawerOpen
+                                                   ? Icons.Material.Filled.Close
+                                               : Icons.Material.Filled.Menu)"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       @onclick="ToggleDrawer" />
+        <MudSpacer />
+       <MudTextField T="string"
+              Placeholder="Search..."
+              Variant="Variant.Outlined"
+              Margin="Margin.Dense"
+              Adornment="Adornment.Start"
+              AdornmentIcon="@Icons.Material.Filled.Search"
+              Class="d-none d-sm-flex"
+              Style="width: 300px; border-radius: 24px;" />
+        <MudChip T="string"
+                 Size="Size.Small"
+                 Class="d-none d-sm-flex"
+                 Style="@($"background-color: {RoleAccents.GetAccent(_role)}; color: white")">
+            @_role
+        </MudChip>
+        <MudText Typo="Typo.caption" Class="d-none d-lg-flex mx-3" Color="Color.Secondary">@_today</MudText>
+        <MudBadge Content="3" Color="Color.Error" Overlap="true" Class="mx-2">
+            <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+        </MudBadge>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="ml-2">
+            <MudAvatar Size="Size.Small" Style="@($"background-color: {RoleAccents.GetAccent(_role)}")">@_initials</MudAvatar>
+            <MudText Typo="Typo.body2" Class="d-none d-md-inline">@_displayName</MudText>
+        </MudStack>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen"
+               ClipMode="DrawerClipMode.Never"
+               Variant="DrawerVariant.Responsive"
+
+               Elevation="1">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">BELMS</MudText>
+        </MudDrawerHeader>
+        <NavMenu Role="@_role" />
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.False" Class="pt-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    [Inject]
+    private IRoleContext RoleContext { get; set; } = default!;
+
+    private bool _drawerOpen = false;
+    private string _role = BelmsRoles.Employee;
+    private string _displayName = "User";
+    private string _initials = "U";
+    private string _today = DateTime.Today.ToString("dddd, dd MMM yyyy");
+    private Timer? _clockTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _role = await RoleContext.GetRoleAsync();
+        _displayName = await RoleContext.GetDisplayNameAsync();
+        _initials = BuildInitials(_displayName);
+        _clockTimer = new Timer(_ =>
+        {
+            _today = DateTime.Today.ToString("dddd, dd MMM yyyy");
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private static string BuildInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+            : name.Length > 0 ? name[..1].ToUpperInvariant() : "U";
+    }
+
+    public void Dispose() => _clockTimer?.Dispose();
+}

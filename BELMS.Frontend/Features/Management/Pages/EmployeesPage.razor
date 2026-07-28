@@ -1,0 +1,307 @@
+@page "/hr/employees"
+@page "/admin/users"
+@page "/manager/team"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Employees - BELMS</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Employees</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Manage the employee directory and onboarding status.</MudText>
+    </div>
+    @if (_canEdit)
+    {
+        <MudStack Row="true" Spacing="2">
+            <MudButton StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Outlined" OnClick="ExportAsync">Export</MudButton>
+            <MudFileUpload T="IBrowserFile" FilesChanged="ImportAsync" Accept=".xlsx" MaximumFileCount="1">
+                <ActivatorContent>
+                    <MudButton StartIcon="@Icons.Material.Filled.Upload" Variant="Variant.Outlined">Import</MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">New Employee</MudButton>
+        </MudStack>
+    }
+</MudStack>
+
+<MudPaper Class="pa-2">
+    <MudTable ServerData="LoadAsync" @ref="_table" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <ToolBarContent>
+            <MudTextField @bind-Value="_search"
+                          Placeholder="Search name or email..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="false"
+                          Clearable="true"
+                          OnKeyUp="OnSearchKey"
+                          Class="mt-0" />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Code</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Department</MudTh>
+            <MudTh>Designation</MudTh>
+            <MudTh>Status</MudTh>
+            @if (_canEdit)
+            {
+                <MudTh Style="text-align:right">Actions</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Code">@context.EmployeeCode</MudTd>
+            <MudTd DataLabel="Name">@context.FullName</MudTd>
+            <MudTd DataLabel="Email">@context.Email</MudTd>
+            <MudTd DataLabel="Department">@context.Department</MudTd>
+            <MudTd DataLabel="Designation">@context.Designation</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+            </MudTd>
+            @if (_canEdit)
+            {
+                <MudTd DataLabel="Actions" Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" />
+                </MudTd>
+            }
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4" Color="Color.Secondary">No employees found.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<MudDialog @bind-Visible="_dialogOpen" Options="_dialogOptions">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-3">@(_isNew ? "New Employee" : "Edit Employee")</MudText>
+        <MudForm @ref="_form">
+            @if (_isNew)
+            {
+                <MudTextField @bind-Value="_model.EmployeeCode" Label="Employee Code" Required="true" />
+                <MudTextField @bind-Value="_model.Email" Label="Email" Required="true" InputType="InputType.Email" Class="mt-2" />
+            }
+            <MudTextField @bind-Value="_model.FullName" Label="Full Name" Required="true" Class="mt-2" />
+            <MudTextField @bind-Value="_model.Department" Label="Department" Required="true" Class="mt-2" />
+            <MudTextField @bind-Value="_model.Designation" Label="Designation" Required="true" Class="mt-2" />
+            @if (!_isNew)
+            {
+                <MudSelect @bind-Value="_model.Status" Label="Status" Class="mt-2">
+                    @foreach (var status in _statuses)
+                    {
+                        <MudSelectItem Value="@status">@status</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _dialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">
+            @(_saving ? "Saving..." : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private IEmployeeApiClient Employees { get; set; } = default!;
+    [Inject] private ICurrentUserService CurrentUser { get; set; } = default!;
+    [Inject] private IFileDownloadService Downloader { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+
+    private MudTable<EmployeeDto> _table = default!;
+    private MudForm _form = default!;
+    private string? _search;
+    private bool _canEdit;
+
+    private bool _dialogOpen;
+    private bool _isNew;
+    private bool _saving;
+    private Guid _editingId;
+
+    private readonly DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, NoHeader = true };
+    private readonly string[] _statuses = ["Pending", "Active", "Inactive", "Terminated"];
+    private EmployeeFormModel _model = new();
+
+    protected override void OnInitialized()
+    {
+        var role = CurrentUser.Role;
+        _canEdit = role is BelmsRoles.Hr or BelmsRoles.Admin;
+    }
+
+    private async Task<TableData<EmployeeDto>> LoadAsync(TableState state, CancellationToken token)
+    {
+        var result = await Employees.GetAllAsync(_search, state.Page + 1, state.PageSize);
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Failed to load employees.", Severity.Error);
+            return new TableData<EmployeeDto> { Items = [], TotalItems = 0 };
+        }
+
+        return new TableData<EmployeeDto> { Items = result.Data.Items, TotalItems = result.Data.TotalCount };
+    }
+
+    private async Task OnSearchKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await _table.ReloadServerData();
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _isNew = true;
+        _model = new EmployeeFormModel { Status = "Pending" };
+        _dialogOpen = true;
+    }
+
+    private void OpenEdit(EmployeeDto employee)
+    {
+        _isNew = false;
+        _editingId = employee.Id;
+        _model = new EmployeeFormModel
+        {
+            EmployeeCode = employee.EmployeeCode,
+            FullName = employee.FullName,
+            Email = employee.Email,
+            Department = employee.Department,
+            Designation = employee.Designation,
+            Status = string.IsNullOrWhiteSpace(employee.Status) ? "Active" : employee.Status
+        };
+        _dialogOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            if (_isNew)
+            {
+                var request = new CreateEmployeeRequest
+                {
+                    EmployeeCode = _model.EmployeeCode,
+                    FullName = _model.FullName,
+                    Email = _model.Email,
+                    Department = _model.Department,
+                    Designation = _model.Designation
+                };
+                var result = await Employees.CreateAsync(request);
+                if (!result.Success)
+                {
+                    Snackbar.Add(result.Error ?? "Could not create employee.", Severity.Error);
+                    return;
+                }
+                Snackbar.Add("Employee created.", Severity.Success);
+            }
+            else
+            {
+                var request = new UpdateEmployeeRequest
+                {
+                    FullName = _model.FullName,
+                    Department = _model.Department,
+                    Designation = _model.Designation,
+                    Status = _model.Status
+                };
+                var result = await Employees.UpdateAsync(_editingId, request);
+                if (!result.Success)
+                {
+                    Snackbar.Add(result.Error ?? "Could not update employee.", Severity.Error);
+                    return;
+                }
+                Snackbar.Add("Employee updated.", Severity.Success);
+            }
+
+            _dialogOpen = false;
+            await _table.ReloadServerData();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync(EmployeeDto employee)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete employee",
+            $"Remove {employee.FullName}? This cannot be undone.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var result = await Employees.DeleteAsync(employee.Id);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Could not delete employee.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Employee removed.", Severity.Success);
+        await _table.ReloadServerData();
+    }
+
+    private async Task ExportAsync()
+    {
+        var result = await Employees.ExportAsync();
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Export failed.", Severity.Error);
+            return;
+        }
+
+        await Downloader.SaveAsync("employees.xlsx", result.Data);
+    }
+
+    private async Task ImportAsync(IBrowserFile? file)
+    {
+        if (file is null)
+        {
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        memory.Position = 0;
+
+        var result = await Employees.ImportAsync(memory, file.Name);
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Import failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add($"Imported {result.Data.SuccessCount}, failed {result.Data.FailureCount}.",
+            result.Data.FailureCount > 0 ? Severity.Warning : Severity.Success);
+        await _table.ReloadServerData();
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Active" => Color.Success,
+        "Pending" => Color.Warning,
+        "Inactive" => Color.Default,
+        "Terminated" => Color.Error,
+        _ => Color.Default
+    };
+
+    private sealed class EmployeeFormModel
+    {
+        public string EmployeeCode { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string Designation { get; set; } = string.Empty;
+        public string Status { get; set; } = "Pending";
+    }
+}

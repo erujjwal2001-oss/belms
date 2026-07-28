@@ -1,0 +1,31 @@
+@using BELMS.Frontend.Theme
+
+<MudCard Class="h-100" Style="@($"border-left: 4px solid {Accent}")">
+    <MudCardContent Class="d-flex align-center gap-3">
+        <MudAvatar Size="Size.Medium" Style="@($"background: rgba(255,255,255,0.06); color: {Accent}")">
+            <MudIcon Icon="@Icon" />
+        </MudAvatar>
+        <div>
+            <MudText Typo="Typo.h5" Class="font-weight-bold">@Value</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@Title</MudText>
+        </div>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Icon { get; set; } = Icons.Material.Filled.TrendingUp;
+
+    [Parameter]
+    public string? Role { get; set; }
+
+    private string Accent => !string.IsNullOrWhiteSpace(Role)
+        ? RoleAccents.GetAccent(Role)
+        : "#2196F3";
+}

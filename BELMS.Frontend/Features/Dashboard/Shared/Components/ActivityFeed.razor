@@ -1,0 +1,37 @@
+@using BELMS.Frontend.Features.Dashboard.Shared.Models
+
+<MudCard Class="h-100">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Recent Activity</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        @if (Items.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No recent activity.</MudText>
+        }
+        else
+        {
+            <MudTimeline TimelinePosition="TimelinePosition.Start">
+                @foreach (var item in Items)
+                {
+                    <MudTimelineItem Size="Size.Small">
+                        <ItemDot>
+                            <MudIcon Icon="@item.Icon" Size="Size.Small" />
+                        </ItemDot>
+                        <ItemContent>
+                            <MudText Typo="Typo.body2">@item.Description</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@item.Actor · @item.Timestamp.ToString("g")</MudText>
+                        </ItemContent>
+                    </MudTimelineItem>
+                }
+            </MudTimeline>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<ActivityItem> Items { get; set; } = [];
+}

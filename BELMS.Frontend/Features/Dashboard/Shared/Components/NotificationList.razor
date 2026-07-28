@@ -1,0 +1,47 @@
+@using BELMS.Frontend.Features.Dashboard.Shared.Models
+
+<MudCard Class="h-100">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.h6">@Title</MudText>
+                @if (UnreadCount > 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error">@UnreadCount</MudChip>
+                }
+            </MudStack>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pa-0">
+        @if (Items.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">No notifications.</MudText>
+        }
+        else
+        {
+            <MudList T="NotificationItem" Dense="true">
+                @foreach (var item in Items)
+                {
+                    <MudListItem Class="@(item.IsUnread ? "mud-theme-primary" : "")">
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.subtitle2">@item.Title</MudText>
+                            <MudText Typo="Typo.body2">@item.Message</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@item.Timestamp.ToString("g")</MudText>
+                        </MudStack>
+                    </MudListItem>
+                    <MudDivider />
+                }
+            </MudList>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Notifications";
+
+    [Parameter]
+    public IReadOnlyList<NotificationItem> Items { get; set; } = [];
+
+    private int UnreadCount => Items.Count(n => n.IsUnread);
+}

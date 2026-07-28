@@ -1,0 +1,12 @@
+<MudStack Spacing="2" aria-busy="true" aria-label="Loading dashboard">
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="48px" Width="100%" />
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="24px" Width="50%" />
+    <MudGrid Spacing="3" Class="mt-2">
+        @for (var i = 0; i < 4; i++)
+        {
+            <MudItem xs="12" sm="6" xl="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="96px" />
+            </MudItem>
+        }
+    </MudGrid>
+</MudStack>

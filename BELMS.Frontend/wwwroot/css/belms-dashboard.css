@@ -1,0 +1,7 @@
+/* Role accent CSS variables — used by MudLayout role class wrappers */
+.role-employee { --belms-accent: #2196f3; }
+.role-hr { --belms-accent: #9c27b0; }
+.role-manager { --belms-accent: #009688; }
+.role-it { --belms-accent: #2196f3; }
+.role-security { --belms-accent: #800000; }
+.role-admin { --belms-accent: #ff9800; }

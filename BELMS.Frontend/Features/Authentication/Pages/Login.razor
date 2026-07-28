@@ -1,0 +1,35 @@
+@page "/login"
+@layout AuthLayout
+
+@using BELMS.Frontend.Features.Authentication.Components
+@using Microsoft.AspNetCore.Components.Authorization
+
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+
+<PageTitle>Sign in - BELMS</PageTitle>
+
+<LoginForm ErrorMessage="@_errorMessage" />
+
+@code {
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    [Inject]
+    private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private string? _errorMessage =>
+        Error == "invalid" ? "Invalid email or password." : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/dashboard", replace: true);
+        }
+    }
+}

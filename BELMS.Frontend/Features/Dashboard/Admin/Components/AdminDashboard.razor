@@ -1,0 +1,74 @@
+@using BELMS.Frontend.Features.Dashboard.Admin.Services
+
+@using BELMS.Frontend.Features.Dashboard.Core
+
+
+
+@if (_model is null)
+
+{
+
+    <DashboardLoadingPlaceholder />
+
+}
+
+else
+
+{
+
+    <DashboardPageHeader Title="Admin Dashboard" Subtitle="@_model.WelcomeMessage" Role="@BelmsRoles.Admin" />
+
+    <DashboardStatGrid Stats="@_model.Stats" Role="@BelmsRoles.Admin" />
+
+
+
+    @* <MudGrid Spacing="3" Class="mt-1">
+
+        <MudItem xs="12" lg="6">
+
+            <SummaryDonutChart Title="User Registrations" Data="@_model.RegistrationsChart" Role="@BelmsRoles.Admin" />
+
+        </MudItem>
+
+        <MudItem xs="12" lg="6">
+
+            <SummaryDonutChart Title="Workflow Overview" Data="@_model.PrimaryChart" Role="@BelmsRoles.Admin" />
+
+        </MudItem>
+
+    </MudGrid> *@
+
+
+
+    <MudGrid Spacing="3" Class="mt-1">
+
+        <MudItem xs="12">
+
+            <QuickActionsPanel Actions="@_model.QuickActions" />
+
+        </MudItem>
+
+    </MudGrid>
+
+}
+
+
+
+@code {
+
+    [Inject]
+
+    private IAdminDashboardService DashboardService { get; set; } = default!;
+
+
+
+    private Admin.Models.AdminDashboardModel? _model;
+
+
+
+    protected override async Task OnInitializedAsync() =>
+
+        _model = await DashboardService.GetDashboardAsync();
+
+}
+

@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="BELMS.Api/BELMS.Api.csproj" />
+  <Project Path="BELMS.AppHost/BELMS.AppHost.csproj" />
+  <Project Path="BELMS.Application/BELMS.Application.csproj" />
+  <Project Path="BELMS.Domain/BELMS.Domain.csproj" />
+  <Project Path="BELMS.Frontend/BELMS.Frontend.csproj" />
+  <Project Path="BELMS.Infrastructure/BELMS.Infrastructure.csproj" />
+  <Project Path="BELMS.ServiceDefaults/BELMS.ServiceDefaults.csproj" />
+</Solution>

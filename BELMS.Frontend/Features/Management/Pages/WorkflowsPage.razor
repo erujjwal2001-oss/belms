@@ -1,0 +1,206 @@
+@page "/admin/workflows"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+
+<PageTitle>Workflows - BELMS</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Workflow Definitions</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Design multi-step approval workflows.</MudText>
+    </div>
+    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">New Workflow</MudButton>
+</MudStack>
+
+<MudPaper Class="pa-2">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    <MudTable Items="_definitions" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Description</MudTh>
+            <MudTh>Steps</MudTh>
+            <MudTh>Active</MudTh>
+            <MudTh Style="text-align:right">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Description">@context.Description</MudTd>
+            <MudTd DataLabel="Steps">@context.Steps.Count</MudTd>
+            <MudTd DataLabel="Active">
+                <MudSwitch T="bool" Value="context.IsActive" Color="Color.Success"
+                           ValueChanged="@(v => ToggleActiveAsync(context, v))" />
+            </MudTd>
+            <MudTd DataLabel="Actions" Style="text-align:right">
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4" Color="Color.Secondary">No workflow definitions yet.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+<MudDialog @bind-Visible="_dialogOpen" Options="_dialogOptions">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-3">New Workflow</MudText>
+        <MudTextField @bind-Value="_model.Name" Label="Name" Required="true" />
+        <MudTextField @bind-Value="_model.Description" Label="Description" Lines="2" Class="mt-2" />
+
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-4 mb-1">
+            <MudText Typo="Typo.subtitle2">Steps</MudText>
+            <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="AddStep">Add Step</MudButton>
+        </MudStack>
+
+        @foreach (var (step, index) in _model.Steps.Select((s, i) => (s, i)))
+        {
+            <MudPaper Class="pa-2 mb-2" Outlined="true">
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                    <MudText Typo="Typo.body2" Style="width:24px">@(index + 1).</MudText>
+                    <MudTextField @bind-Value="step.Name" Label="Step Name" Margin="Margin.Dense" />
+                    <MudSelect T="string" @bind-Value="step.AssignedRole" Label="Role" Margin="Margin.Dense">
+                        @foreach (var role in WorkflowRoles.All)
+                        {
+                            <MudSelectItem Value="@role">@role</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="string" @bind-Value="step.StepType" Label="Type" Margin="Margin.Dense">
+                        <MudSelectItem Value="@("Approval")">Approval</MudSelectItem>
+                        <MudSelectItem Value="@("Task")">Task</MudSelectItem>
+                        <MudSelectItem Value="@("Upload")">Upload</MudSelectItem>
+                    </MudSelect>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _model.Steps.Remove(step))" />
+                </MudStack>
+            </MudPaper>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _dialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">
+            @(_saving ? "Saving..." : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private IWorkflowApiClient Workflows { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+
+    private List<WorkflowDefinitionDto> _definitions = [];
+    private bool _loading = true;
+
+    private bool _dialogOpen;
+    private bool _saving;
+
+    private readonly DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true, NoHeader = true };
+    private CreateWorkflowDefinitionRequest _model = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Workflows.GetDefinitionsAsync();
+        _loading = false;
+
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Failed to load workflows.", Severity.Error);
+            _definitions = [];
+            return;
+        }
+
+        _definitions = result.Data;
+    }
+
+    private void OpenCreate()
+    {
+        _model = new CreateWorkflowDefinitionRequest
+        {
+            Steps = [new CreateWorkflowStepRequest { Name = "Review", AssignedRole = "Manager", StepType = "Approval" }]
+        };
+        _dialogOpen = true;
+    }
+
+    private void AddStep() =>
+        _model.Steps.Add(new CreateWorkflowStepRequest { AssignedRole = "Manager", StepType = "Approval" });
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Name) || _model.Steps.Count == 0)
+        {
+            Snackbar.Add("A name and at least one step are required.", Severity.Warning);
+            return;
+        }
+
+        for (var i = 0; i < _model.Steps.Count; i++)
+        {
+            _model.Steps[i].StepOrder = i + 1;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Workflows.CreateDefinitionAsync(_model);
+            if (!result.Success)
+            {
+                Snackbar.Add(result.Error ?? "Could not create workflow.", Severity.Error);
+                return;
+            }
+
+            Snackbar.Add("Workflow created.", Severity.Success);
+            _dialogOpen = false;
+            await LoadAsync();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ToggleActiveAsync(WorkflowDefinitionDto definition, bool isActive)
+    {
+        var result = await Workflows.UpdateDefinitionAsync(definition.Id, new UpdateWorkflowDefinitionRequest
+        {
+            Name = definition.Name,
+            Description = definition.Description,
+            IsActive = isActive
+        });
+
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Could not update workflow.", Severity.Error);
+            return;
+        }
+
+        definition.IsActive = isActive;
+        Snackbar.Add("Workflow updated.", Severity.Success);
+    }
+
+    private async Task DeleteAsync(WorkflowDefinitionDto definition)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete workflow",
+            $"Delete '{definition.Name}'?",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var result = await Workflows.DeleteDefinitionAsync(definition.Id);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Could not delete workflow.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Workflow deleted.", Severity.Success);
+        await LoadAsync();
+    }
+}

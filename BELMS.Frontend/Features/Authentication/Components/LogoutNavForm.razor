@@ -1,0 +1,65 @@
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@using Frontend.Common.Components.Dialogs
+@rendermode InteractiveServer
+
+<AuthorizeView>
+    <Authorized>
+        <MudDivider Class="my-2" />
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Inherit"
+                   StartIcon="@Icons.Material.Filled.Logout"
+                   FullWidth="true"
+                   Class="justify-start px-2"
+                   Disabled="@_isLoggingOut"
+                   @onclick="OpenDialogAsync">
+            @(_isLoggingOut ? "Signing out..." : "Log out")
+        </MudButton>
+    </Authorized>
+
+    <NotAuthorized>
+        <MudNavLink Href="login"
+                    Icon="@Icons.Material.Filled.Login">
+            Sign in
+        </MudNavLink>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isLoggingOut;
+
+    private async Task OpenDialogAsync()
+    {
+        var options = new DialogOptions { BackgroundClass = "my-custom-class" };
+
+        var parameters = new DialogParameters<GeneralDialog>
+        {
+            { x => x.Title, "Log out" },
+            { x => x.Content, "Are you sure you want to log out?" }
+        };
+
+        var dialog = await DialogService.ShowAsync<GeneralDialog>(
+            "Confirm",
+            parameters
+         );
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            HandleLogout();
+        }
+    }
+ 
+
+    private void HandleLogout()
+    {
+        _isLoggingOut = true;
+        Navigation.NavigateTo("/auth/logout", forceLoad: true);
+    }
+}
+<style>
+    .my-custom-class {
+        backdrop-filter: blur(30px);
+    }
+</style>

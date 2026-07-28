@@ -1,0 +1,102 @@
+@using BELMS.Frontend.Features.Dashboard.Core
+
+@using BELMS.Frontend.Features.Dashboard.It.Services
+
+@using BELMS.Frontend.Features.Dashboard.Shared.Models
+
+
+
+@if (_model is null)
+
+{
+
+    <DashboardLoadingPlaceholder />
+
+}
+
+else
+
+{
+
+    <DashboardPageHeader Title="IT Dashboard" Subtitle="@_model.WelcomeMessage" Role="@BelmsRoles.It" />
+
+    <DashboardStatGrid Stats="@_model.Stats" Role="@BelmsRoles.It" />
+
+
+
+    <MudGrid Spacing="3" Class="mt-1">
+
+        <MudItem xs="12" lg="7">
+
+            <PendingTasksTable Title="IT Tasks" Items="@_model.PendingTasks" />
+
+        </MudItem>
+
+        <MudItem xs="12" lg="5">
+
+            <DataTable TItem="AssetSummaryItem" Title="Asset Summary" Items="@_model.AssetSummary">
+
+                <HeaderContent>
+
+                    <MudTh>Category</MudTh>
+
+                    <MudTh Style="text-align: right">Total</MudTh>
+
+                    <MudTh Style="text-align: right">Available</MudTh>
+
+                </HeaderContent>
+
+                <RowTemplate Context="item">
+
+                    <MudTd DataLabel="Category">@item.Category</MudTd>
+
+                    <MudTd DataLabel="Total" Style="text-align: right">@item.Total</MudTd>
+
+                    <MudTd DataLabel="Available" Style="text-align: right">
+
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">@item.Available</MudChip>
+
+                    </MudTd>
+
+                </RowTemplate>
+
+            </DataTable>
+
+        </MudItem>
+
+    </MudGrid>
+
+
+
+    <MudGrid Spacing="3" Class="mt-1">
+
+        <MudItem xs="12">
+
+            <QuickActionsPanel Actions="@_model.QuickActions" />
+
+        </MudItem>
+
+    </MudGrid>
+
+}
+
+
+
+@code {
+
+    [Inject]
+
+    private IItDashboardService DashboardService { get; set; } = default!;
+
+
+
+    private It.Models.ItDashboardModel? _model;
+
+
+
+    protected override async Task OnInitializedAsync() =>
+
+        _model = await DashboardService.GetDashboardAsync();
+
+}
+

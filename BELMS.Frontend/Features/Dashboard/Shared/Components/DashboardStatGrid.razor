@@ -1,0 +1,21 @@
+@using BELMS.Frontend.Features.Dashboard.Shared.Models
+
+<MudGrid Spacing="3">
+    @foreach (var stat in Stats)
+    {
+        <MudItem xs="2" sm="3">
+            <DashboardStatCard Title="@stat.Title"
+                               Value="@stat.Value"
+                               Icon="@stat.Icon"
+                               Role="@Role" />
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<StatItem> Stats { get; set; } = [];
+
+    [Parameter]
+    public string? Role { get; set; }
+}

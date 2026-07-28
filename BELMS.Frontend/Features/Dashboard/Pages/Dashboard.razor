@@ -1,0 +1,50 @@
+@page "/"
+@page "/dashboard"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+@using BELMS.Frontend.Features.Dashboard.Admin.Components
+@using BELMS.Frontend.Features.Dashboard.Core
+@using BELMS.Frontend.Features.Dashboard.Employee.Components
+@using BELMS.Frontend.Features.Dashboard.Hr.Components
+@using BELMS.Frontend.Features.Dashboard.It.Components
+@using BELMS.Frontend.Features.Dashboard.Manager.Components
+@using BELMS.Frontend.Features.Dashboard.Security.Components
+@using BELMS.Frontend.Features.Dashboard.Services
+@using BELMS.Frontend.Theme
+
+<PageTitle>Dashboard - BELMS</PageTitle>
+
+<div class="@RoleAccents.GetCssClass(_role)">
+    @switch (_role)
+    {
+        case BelmsRoles.Hr:
+            <HrDashboard />
+            break;
+        case BelmsRoles.Manager:
+            <ManagerDashboard />
+            break;
+        case BelmsRoles.It:
+            <ItDashboard />
+            break;
+        case BelmsRoles.Security:
+            <SecurityDashboard />
+            break;
+        case BelmsRoles.Admin:
+            <AdminDashboard />
+            break;
+        default:
+            <EmployeeDashboard />
+            break;
+    }
+</div>
+
+@code {
+    [Inject]
+    private IRoleContext RoleContext { get; set; } = default!;
+
+    private string _role = BelmsRoles.Employee;
+
+    protected override async Task OnInitializedAsync() =>
+        _role = await RoleContext.GetRoleAsync();
+}

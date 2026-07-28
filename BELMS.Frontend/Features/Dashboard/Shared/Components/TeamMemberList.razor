@@ -1,0 +1,50 @@
+@using BELMS.Frontend.Features.Dashboard.Shared.Models
+
+<MudCard Class="h-100">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">@Title</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pa-0">
+        @if (Members.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">No team members.</MudText>
+        }
+        else
+        {
+            <MudList T="TeamMember" Dense="true">
+                @foreach (var member in Members)
+                {
+                    <MudListItem>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Style="width: 100%">
+                            <MudAvatar Size="Size.Small" Color="Color.Primary">@member.AvatarInitials</MudAvatar>
+                            <MudStack Spacing="0" Class="flex-grow-1">
+                                <MudText Typo="Typo.subtitle2">@member.Name</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@member.Role</MudText>
+                            </MudStack>
+                            <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(member.Status)">@member.Status</MudChip>
+                        </MudStack>
+                    </MudListItem>
+                    <MudDivider />
+                }
+            </MudList>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "My Team";
+
+    [Parameter]
+    public IReadOnlyList<TeamMember> Members { get; set; } = [];
+
+    private static Color GetStatusColor(string status) => status switch
+    {
+        "Active" => Color.Success,
+        "On Leave" => Color.Warning,
+        "Remote" => Color.Info,
+        _ => Color.Default
+    };
+}

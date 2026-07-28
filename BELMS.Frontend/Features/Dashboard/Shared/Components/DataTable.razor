@@ -1,0 +1,49 @@
+@typeparam TItem
+
+<MudCard Class="h-100">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">@Title</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pa-0">
+        @if (Items.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">@EmptyMessage</MudText>
+        }
+        else if (HeaderContent is not null)
+        {
+            <MudTable Items="@Items" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>@HeaderContent</HeaderContent>
+                <RowTemplate>
+                    @RowTemplate!(context)
+                </RowTemplate>
+            </MudTable>
+        }
+        else
+        {
+            <MudTable Items="@Items" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+                <RowTemplate>
+                    @RowTemplate!(context)
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public IReadOnlyList<TItem> Items { get; set; } = [];
+
+    [Parameter]
+    public string EmptyMessage { get; set; } = "No records.";
+
+    [Parameter]
+    public RenderFragment? HeaderContent { get; set; }
+
+    [Parameter, EditorRequired]
+    public RenderFragment<TItem> RowTemplate { get; set; } = default!;
+}

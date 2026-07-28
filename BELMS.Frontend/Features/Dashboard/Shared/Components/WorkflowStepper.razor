@@ -1,0 +1,48 @@
+@using BELMS.Frontend.Features.Dashboard.Shared.Models
+
+<MudCard Class="h-100">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">@Title</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        @if (Steps.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No workflow steps.</MudText>
+        }
+        else
+        {
+            <MudStepper NonLinear="true" ActiveIndex="@GetActiveIndex()">
+                @for (var i = 0; i < Steps.Count; i++)
+                {
+                    var step = Steps[i];
+                    <MudStep Title="@step.Label" Completed="@step.IsComplete">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@step.Status</MudText>
+                    </MudStep>
+                }
+            </MudStepper>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Workflow Progress";
+
+    [Parameter]
+    public IReadOnlyList<WorkflowStep> Steps { get; set; } = [];
+
+    private int GetActiveIndex()
+    {
+        for (var i = 0; i < Steps.Count; i++)
+        {
+            if (!Steps[i].IsComplete)
+            {
+                return i;
+            }
+        }
+
+        return Steps.Count > 0 ? Steps.Count - 1 : 0;
+    }
+}

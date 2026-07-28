@@ -1,0 +1,215 @@
+@page "/security/access"
+@page "/employee/requests"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Access Requests - BELMS</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h4">@(_mineOnly ? "My Access Requests" : "Access Requests")</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @(_mineOnly ? "Track the status of requests you have raised." : "Review and action access requests across the organization.")
+        </MudText>
+    </div>
+    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">New Request</MudButton>
+</MudStack>
+
+<MudPaper Class="pa-2">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    <MudTable Items="_requests" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Employee</MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh>Requested By</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh>Status</MudTh>
+            @if (_canManage)
+            {
+                <MudTh Style="text-align:right">Actions</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Employee">@context.EmployeeName</MudTd>
+            <MudTd DataLabel="Type">@context.RequestType</MudTd>
+            <MudTd DataLabel="Requested By">@context.RequestedByName</MudTd>
+            <MudTd DataLabel="Created">@context.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+            </MudTd>
+            @if (_canManage)
+            {
+                <MudTd DataLabel="Actions" Style="text-align:right">
+                    <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Class="mr-1"
+                               OnClick="@(() => UpdateStatusAsync(context, "Completed"))">Approve</MudButton>
+                    <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined"
+                               OnClick="@(() => UpdateStatusAsync(context, "Rejected"))">Reject</MudButton>
+                </MudTd>
+            }
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4" Color="Color.Secondary">No access requests found.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<MudDialog @bind-Visible="_dialogOpen" Options="_dialogOptions">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-3">New Access Request</MudText>
+        @if (_employees.Count > 0)
+        {
+            <MudSelect T="Guid" @bind-Value="_model.EmployeeId" Label="Employee" Required="true">
+                @foreach (var employee in _employees)
+                {
+                    <MudSelectItem Value="@employee.Id">@employee.FullName (@employee.EmployeeCode)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        else
+        {
+            <MudTextField @bind-Value="_employeeIdText" Label="Employee Id (GUID)" Required="true"
+                          HelperText="Employee directory is not available for your role; paste the employee id." />
+        }
+        <MudTextField @bind-Value="_model.RequestType" Label="Request Type" Required="true" Class="mt-2"
+                      HelperText="e.g. VPN Access, Building Pass, Admin Rights" />
+        <MudTextField @bind-Value="_model.Notes" Label="Notes" Lines="3" Class="mt-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _dialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateAsync" Disabled="_saving">
+            @(_saving ? "Submitting..." : "Submit")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private IAccessRequestApiClient AccessRequests { get; set; } = default!;
+    [Inject] private IEmployeeApiClient Employees { get; set; } = default!;
+    [Inject] private ICurrentUserService CurrentUser { get; set; } = default!;
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+
+    private List<AccessRequestDto> _requests = [];
+    private List<EmployeeDto> _employees = [];
+    private bool _loading = true;
+    private bool _mineOnly;
+    private bool _canManage;
+
+    private bool _dialogOpen;
+    private bool _saving;
+    private string _employeeIdText = string.Empty;
+
+    private readonly DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, NoHeader = true };
+    private CreateAccessRequestRequest _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _mineOnly = Nav.Uri.Contains("employee/requests", StringComparison.OrdinalIgnoreCase);
+        var role = CurrentUser.Role;
+        _canManage = !_mineOnly && role is BelmsRoles.Security or BelmsRoles.Hr or BelmsRoles.Admin;
+
+        await LoadEmployeesAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        var result = await Employees.GetAllAsync(null, 1, 100);
+        if (result.Success && result.Data is not null)
+        {
+            _employees = result.Data.Items;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = _mineOnly
+            ? await AccessRequests.GetMyRequestsAsync()
+            : await AccessRequests.GetAllAsync();
+        _loading = false;
+
+        if (!result.Success || result.Data is null)
+        {
+            Snackbar.Add(result.Error ?? "Failed to load access requests.", Severity.Error);
+            _requests = [];
+            return;
+        }
+
+        _requests = result.Data;
+    }
+
+    private void OpenCreate()
+    {
+        _model = new CreateAccessRequestRequest();
+        _employeeIdText = string.Empty;
+        _dialogOpen = true;
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_employees.Count == 0 && Guid.TryParse(_employeeIdText, out var parsed))
+        {
+            _model.EmployeeId = parsed;
+        }
+
+        if (_model.EmployeeId == Guid.Empty)
+        {
+            Snackbar.Add("Please choose an employee.", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await AccessRequests.CreateAsync(_model);
+            if (!result.Success)
+            {
+                Snackbar.Add(result.Error ?? "Could not submit request.", Severity.Error);
+                return;
+            }
+
+            Snackbar.Add("Access request submitted.", Severity.Success);
+            _dialogOpen = false;
+            await LoadAsync();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task UpdateStatusAsync(AccessRequestDto request, string status)
+    {
+        var result = await AccessRequests.UpdateAsync(request.Id, new UpdateAccessRequestRequest
+        {
+            Status = status,
+            Notes = request.Notes
+        });
+
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Could not update request.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add($"Request marked {status}.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Pending" => Color.Warning,
+        "InProgress" => Color.Info,
+        "Completed" => Color.Success,
+        "Rejected" => Color.Error,
+        "Returned" => Color.Warning,
+        _ => Color.Default
+    };
+}

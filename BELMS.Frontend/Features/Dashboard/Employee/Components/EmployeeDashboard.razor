@@ -1,0 +1,62 @@
+@using BELMS.Frontend.Features.Dashboard.Core
+
+@using BELMS.Frontend.Features.Dashboard.Employee.Services
+
+
+
+@if (_model is null)
+
+{
+
+    <DashboardLoadingPlaceholder />
+
+}
+
+else
+
+{
+
+    <DashboardPageHeader Title="Welcome back" Subtitle="@_model.WelcomeMessage" Role="@BelmsRoles.Employee" />
+
+    <DashboardStatGrid Stats="@_model.Stats" Role="@BelmsRoles.Employee" />
+
+
+
+    <MudGrid Spacing="3" Class="mt-1">
+
+        <MudItem xs="12" lg="6">
+
+            <WorkflowStepper Steps="@_model.WorkflowSteps" />
+
+        </MudItem>
+
+        <MudItem xs="12" lg="6">
+
+            <NotificationList Items="@_model.Notifications" />
+
+        </MudItem>
+
+    </MudGrid>
+
+}
+
+
+
+@code {
+
+    [Inject]
+
+    private IEmployeeDashboardService DashboardService { get; set; } = default!;
+
+
+
+    private Employee.Models.EmployeeDashboardModel? _model;
+
+
+
+    protected override async Task OnInitializedAsync() =>
+
+        _model = await DashboardService.GetDashboardAsync();
+
+}
+

@@ -1,0 +1,19 @@
+# Visual Studio files
+.vs/
+*.user
+*.suo
+
+# Build output
+bin/
+obj/
+
+# .NET build artifacts
+*.dll
+*.pdb
+
+# Aspire generated files
+.build-verify/
+
+# Node files (if frontend uses npm)
+node_modules/
+dist/

@@ -1,0 +1,64 @@
+@using BELMS.Frontend.Features.Dashboard.Core
+@using BELMS.Frontend.Features.Authentication.Components
+
+
+<MudNavMenu  Dense="true" >
+    <MudNavLink Href="dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+        Dashboard
+    </MudNavLink>
+
+    @foreach (var item in GetRoleNavItems(Role))
+    {
+        <MudNavLink Href="@item.Href" Icon="@item.Icon">@item.Label</MudNavLink>
+    }
+</MudNavMenu>
+<LogoutNavForm />
+
+@code {
+    [Parameter]
+    public string Role { get; set; } = BelmsRoles.Employee;
+
+    private static IReadOnlyList<NavItem> GetRoleNavItems(string role) => role switch
+    {
+        BelmsRoles.Admin =>
+        [
+            new("Users", "admin/users", Icons.Material.Filled.ManageAccounts),
+            new("Workflows", "admin/workflows", Icons.Material.Filled.AccountTree),
+            new("Settings", "admin/settings", Icons.Material.Filled.Settings)
+        ],
+        BelmsRoles.Hr =>
+        [
+            new("Employees", "hr/employees", Icons.Material.Filled.People),
+            new("Onboarding", "hr/employees", Icons.Material.Filled.DepartureBoard),
+            new("Assets", "hr/Assets", Icons.Material.Filled.FolderZip),
+            new("Workflows", "hr/Assets", Icons.Material.Filled.CalendarMonth),
+            new("Reports", "hr/reports", Icons.Material.Filled.BarChart)
+        ],
+        BelmsRoles.Manager =>
+        [
+            new("My Team", "manager/team", Icons.Material.Filled.Groups),
+            new("Approvals", "manager/approvals", Icons.Material.Filled.Rule),
+            new("Calendar", "manager/calendar", Icons.Material.Filled.CalendarMonth)
+        ],
+        BelmsRoles.It =>
+        [
+            new("Assets", "it/assets", Icons.Material.Filled.Devices),
+            new("Tickets", "it/tickets", Icons.Material.Filled.SupportAgent),
+            new("Provisioning", "it/provisioning", Icons.Material.Filled.CloudUpload)
+        ],
+        BelmsRoles.Security =>
+        [
+            new("Access Requests", "security/access", Icons.Material.Filled.Lock),
+            new("Audits", "security/audits", Icons.Material.Filled.VerifiedUser),
+            new("Incidents", "security/incidents", Icons.Material.Filled.Warning)
+        ],
+        _ =>
+        [
+            new("My Requests", "employee/requests", Icons.Material.Filled.Assignment),
+            new("Leave", "employee/leave", Icons.Material.Filled.Event),
+            new("Assets", "employee/assets", Icons.Material.Filled.Devices)
+        ]
+    };
+
+    private sealed record NavItem(string Label, string Href, string Icon);
+}

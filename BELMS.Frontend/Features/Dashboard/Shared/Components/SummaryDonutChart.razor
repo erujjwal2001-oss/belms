@@ -1,0 +1,141 @@
+@using BELMS.Frontend.Features.Dashboard.Shared.Models
+@using BELMS.Frontend.Theme
+
+<MudCard Class="h-100">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">@(Data?.Title ?? Title)</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+
+    <MudCardContent>
+        @if (_segmentCount == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                No chart data available.
+            </MudText>
+        }
+        else
+        {
+            @* <MudStack Row="true"
+                      AlignItems="AlignItems.Center"
+                      Spacing="4"
+                      Wrap="Wrap.Wrap"> *@
+
+                <MudChart T="double"
+                          ChartType="ChartType.Pie"
+                          ChartSeries="@_chartSeries"
+                          ChartLabels="@_chartLabels"
+                          ChartOptions="@_donutOptions"
+                          Height="100%"
+                          Width="60%" />
+
+                @* <MudList T="string" Dense="true" Class="flex-grow-1">
+                    @for (var i = 0; i < _segmentCount; i++)
+                    {
+                        var color = _palette[i % _palette.Length];
+
+                        <MudListItem>
+                            <MudStack Row="true"
+                                      AlignItems="AlignItems.Center"
+                                      Spacing="2"
+                                      Style="width:100%">
+
+                                <MudIcon Icon="@Icons.Material.Filled.Circle"
+                                         Style="@($"color:{color};font-size:0.75rem")" />
+
+                                <MudText Typo="Typo.body2" Class="flex-grow-1">
+                                    @_chartLabels[1]
+                                </MudText>
+
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    @_segmentValues[1]
+                                </MudText>
+
+                            </MudStack>
+                        </MudListItem>
+                    }
+                </MudList> *@
+
+            @* </MudStack> *@
+        }
+    </MudCardContent>
+</MudCard>
+
+@code
+{
+    [Parameter]
+    public string Title { get; set; } = "Summary";
+
+    [Parameter]
+    public ChartData? Data { get; set; }
+
+    [Parameter]
+    public string? Role { get; set; }
+
+    private List<ChartSeries<double>> _chartSeries = [];
+    private string[] _chartLabels = [];
+    private double[] _segmentValues = [];
+    private int _segmentCount;
+    private string[] _palette = [];
+    private DonutChartOptions _donutOptions = new();
+
+    protected override void OnParametersSet()
+    {
+        var accent = !string.IsNullOrWhiteSpace(Role)
+            ? RoleAccents.GetAccent(Role)
+            : "#2196F3";
+
+        _palette =
+        [
+            accent,
+            "#6c757d",
+            "#20c997",
+            "#ffc107",
+            "#dc3545",
+            "#0dcaf0"
+        ];
+
+        _donutOptions = new DonutChartOptions
+        {
+            ChartPalette = _palette
+        };
+
+        if (Data == null)
+        {
+            ResetChart();
+            return;
+        }
+
+        _segmentCount = Data.SegmentCount;
+
+        if (_segmentCount == 0)
+        {
+            ResetChart();
+            return;
+        }
+
+        _chartLabels = Data.Labels!.Take(_segmentCount).ToArray();
+
+        _segmentValues = Data.Values!
+            .Take(_segmentCount)
+            .Select(v => (double)v)
+            .ToArray();
+
+        _chartSeries =
+        [
+            new ChartSeries<double>
+            {
+                Data = new MudBlazor.ChartData<double>(_segmentValues)
+            }
+        ];
+    }
+
+    private void ResetChart()
+    {
+        _segmentCount = 0;
+        _chartLabels = [];
+        _segmentValues = [];
+        _chartSeries = [];
+    }
+}
