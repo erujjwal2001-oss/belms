@@ -24,7 +24,7 @@ steps:
 - task: UseDotNet@2
   displayName: 'Install .NET SDK'
   inputs:
-    packageType: sdk
+    packageType: 'sdk'
     version: '$(dotnetSdkVersion)'
     includePreviewVersions: true
 
@@ -32,14 +32,14 @@ steps:
 - task: DotNetCoreCLI@2
   displayName: 'Restore Solution'
   inputs:
-    command: restore
+    command: 'restore'
     projects: 'BELMS.slnx'
 
 # Build
 - task: DotNetCoreCLI@2
   displayName: 'Build Solution'
   inputs:
-    command: build
+    command: 'build'
     projects: 'BELMS.slnx'
     arguments: '--configuration $(buildConfiguration)'
 
@@ -47,23 +47,43 @@ steps:
 - task: DotNetCoreCLI@2
   displayName: 'Publish BELMS.Api'
   inputs:
-    command: publish
+    command: 'publish'
     publishWebProjects: false
     projects: 'BELMS.Api/BELMS.Api.csproj'
     arguments: '--configuration $(buildConfiguration) --output "$(apiPublishDir)"'
     zipAfterPublish: false
 
+# Zip API
+- task: ArchiveFiles@2
+  displayName: 'Zip BELMS.Api'
+  inputs:
+    rootFolderOrFile: '$(apiPublishDir)'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactStagingDirectory)\BELMS.Api.zip'
+    replaceExistingArchive: true
+
 # Publish Frontend
 - task: DotNetCoreCLI@2
   displayName: 'Publish BELMS.Frontend'
   inputs:
-    command: publish
+    command: 'publish'
     publishWebProjects: false
     projects: 'BELMS.Frontend/BELMS.Frontend.csproj'
     arguments: '--configuration $(buildConfiguration) --output "$(frontendPublishDir)"'
     zipAfterPublish: false
 
-# Deploy API
+# Zip Frontend
+- task: ArchiveFiles@2
+  displayName: 'Zip BELMS.Frontend'
+  inputs:
+    rootFolderOrFile: '$(frontendPublishDir)'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactStagingDirectory)\BELMS.Frontend.zip'
+    replaceExistingArchive: true
+
+# Deploy API to IIS
 - powershell: |
     Import-Module WebAdministration
 
@@ -76,7 +96,6 @@ steps:
     }
 
     Remove-Item "$(apiDeployPath)\*" -Recurse -Force -ErrorAction SilentlyContinue
-
     Copy-Item "$(apiPublishDir)\*" "$(apiDeployPath)" -Recurse -Force
 
     if (Test-Path IIS:\AppPools\BELMS.Api) {
@@ -84,7 +103,7 @@ steps:
     }
   displayName: 'Deploy API to IIS'
 
-# Deploy Frontend
+# Deploy Frontend to IIS
 - powershell: |
     Import-Module WebAdministration
 
@@ -97,7 +116,6 @@ steps:
     }
 
     Remove-Item "$(frontendDeployPath)\*" -Recurse -Force -ErrorAction SilentlyContinue
-
     Copy-Item "$(frontendPublishDir)\*" "$(frontendDeployPath)" -Recurse -Force
 
     if (Test-Path IIS:\AppPools\BELMS.Frontend) {
@@ -105,9 +123,10 @@ steps:
     }
   displayName: 'Deploy Frontend to IIS'
 
-# Publish artifacts (optional)
+# Publish Artifacts
 - task: PublishBuildArtifacts@1
   displayName: 'Publish Build Artifacts'
   inputs:
-    pathToPublish: '$(Build.ArtifactStagingDirectory)'
-    artifactName: 'drop'
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
