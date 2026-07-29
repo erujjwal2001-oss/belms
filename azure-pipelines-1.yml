@@ -134,83 +134,48 @@ steps:
 
 
 # Create IIS Application Pools
-
 - powershell: |
 
     Import-Module WebAdministration
 
-
-    if (!(Test-Path "IIS:\AppPools\$(apiPoolName)")) {
-
-        New-WebAppPool -Name "$(apiPoolName)"
-
+    # Create API Pool
+    if (!(Test-Path IIS:\AppPools\BELMS.ApiPool)) {
+        New-WebAppPool -Name "BELMS.ApiPool"
         Set-ItemProperty `
-        "IIS:\AppPools\$(apiPoolName)" `
+        IIS:\AppPools\BELMS.ApiPool `
         -Name managedRuntimeVersion `
         -Value ""
 
+        Write-Host "Created BELMS.ApiPool"
     }
 
-
-
-    if (!(Test-Path "IIS:\AppPools\$(frontendPoolName)")) {
-
-        New-WebAppPool -Name "$(frontendPoolName)"
-
+    # Create Frontend Pool
+    if (!(Test-Path IIS:\AppPools\BELMS.FrontendPool)) {
+        New-WebAppPool -Name "BELMS.FrontendPool"
         Set-ItemProperty `
-        "IIS:\AppPools\$(frontendPoolName)" `
+        IIS:\AppPools\BELMS.FrontendPool `
         -Name managedRuntimeVersion `
         -Value ""
-
+        Write-Host "Created BELMS.FrontendPool"
     }
 
+  displayName: 'Create IIS Application Pools'
 
-  displayName: 'Create IIS Pools'
-
-
-
-
+  
 # Deploy API
-
 - powershell: |
 
     Import-Module WebAdministration
 
 
-    Write-Host "Stopping API Pool"
+    Stop-WebAppPool "BELMS.ApiPool"
 
 
-    if(Test-Path "IIS:\AppPools\$(apiPoolName)") {
-
-        Stop-WebAppPool "$(apiPoolName)"
-
-    }
-
-
-
-    Write-Host "Stopping dotnet process"
-
-
-    Get-Process dotnet -ErrorAction SilentlyContinue |
-    Stop-Process -Force
-
-
-
-    Start-Sleep -Seconds 5
-
-
-
-    if(!(Test-Path "$(apiDeployPath)")) {
-
+    if (!(Test-Path "$(apiDeployPath)")) {
         New-Item `
         -ItemType Directory `
-        -Path "$(apiDeployPath)" | Out-Null
-
+        -Path "$(apiDeployPath)"
     }
-
-
-
-    Write-Host "Cleaning API folder"
 
 
     Remove-Item "$(apiDeployPath)\*" `
@@ -219,45 +184,20 @@ steps:
     -ErrorAction SilentlyContinue
 
 
-
-    Write-Host "Copying API files"
-
-
-
-    robocopy `
-    "$(apiPublishDir)" `
+    Copy-Item `
+    "$(apiPublishDir)\*" `
     "$(apiDeployPath)" `
-    /MIR `
-    /R:3 `
-    /W:5
+    -Recurse `
+    -Force
 
 
-
-    $code = $LASTEXITCODE
-
-
-    Write-Host "Robocopy code: $code"
-
-
-
-    if($code -gt 7){
-
-        throw "API deployment failed"
-
-    }
-
-
-
-    Start-WebAppPool "$(apiPoolName)"
+    Start-WebAppPool "BELMS.ApiPool"
 
 
     Write-Host "API Deployment Completed"
 
 
-    exit 0
-
-
-  displayName: 'Deploy BELMS.Api'
+  displayName: 'Deploy BELMS.Api IIS'
 
 
 
@@ -267,79 +207,30 @@ steps:
 - powershell: |
 
     Import-Module WebAdministration
-
-
-
-    Write-Host "Stopping Frontend Pool"
-
-
-
-    if(Test-Path "IIS:\AppPools\$(frontendPoolName)") {
-
-        Stop-WebAppPool "$(frontendPoolName)"
-
-    }
-
-
-
-    if(!(Test-Path "$(frontendDeployPath)")) {
+    Stop-WebAppPool "BELMS.FrontendPool"
+    if (!(Test-Path "$(frontendDeployPath)")) {
 
         New-Item `
         -ItemType Directory `
-        -Path "$(frontendDeployPath)" | Out-Null
+        -Path "$(frontendDeployPath)"
 
     }
-
-
-
-    Write-Host "Cleaning Frontend"
-
 
     Remove-Item "$(frontendDeployPath)\*" `
     -Recurse `
     -Force `
     -ErrorAction SilentlyContinue
 
-
-
-    Write-Host "Copying Frontend files"
-
-
-
-    robocopy `
-    "$(frontendPublishDir)" `
+    Copy-Item `
+    "$(frontendPublishDir)\*" `
     "$(frontendDeployPath)" `
-    /MIR `
-    /R:3 `
-    /W:5
+    -Recurse `
+    -Force
 
-
-
-    $code = $LASTEXITCODE
-
-
-    Write-Host "Robocopy code: $code"
-
-
-
-    if($code -gt 7){
-
-        throw "Frontend deployment failed"
-
-    }
-
-
-
-    Start-WebAppPool "$(frontendPoolName)"
-
-
+    Start-WebAppPool "BELMS.FrontendPool"
     Write-Host "Frontend Deployment Completed"
 
-
-    exit 0
-
-
-  displayName: 'Deploy BELMS.Frontend'
+  displayName: 'Deploy BELMS.Frontend IIS'
 
 
 
