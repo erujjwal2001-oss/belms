@@ -28,8 +28,6 @@ variables:
 steps:
 
 
-# Checkout
-
 - checkout: self
   clean: true
 
@@ -51,7 +49,7 @@ steps:
 - task: DotNetCoreCLI@2
   displayName: 'Restore Solution'
   inputs:
-    command: restore
+    command: 'restore'
     projects: 'BELMS.slnx'
 
 
@@ -61,7 +59,7 @@ steps:
 - task: DotNetCoreCLI@2
   displayName: 'Build Solution'
   inputs:
-    command: build
+    command: 'build'
     projects: 'BELMS.slnx'
     arguments: '--configuration $(buildConfiguration)'
 
@@ -72,51 +70,37 @@ steps:
 - task: DotNetCoreCLI@2
   displayName: 'Publish BELMS.Api'
   inputs:
-
-    command: publish
-
+    command: 'publish'
     publishWebProjects: false
-
     projects: 'BELMS.Api/BELMS.Api.csproj'
-
-    arguments: >
-      --configuration $(buildConfiguration)
-      --output "$(apiPublishDir)"
-
+    arguments: '--configuration $(buildConfiguration) --output "$(apiPublishDir)"'
     zipAfterPublish: false
 
 
 
-# Check API output
+# Verify API Output
 
 - powershell: |
 
-    Write-Host "API Files"
+    Write-Host "API Publish Files"
 
-    Get-ChildItem "$(apiPublishDir)" -Recurse
+    Get-ChildItem "$(apiPublishDir)"
 
 
-  displayName: 'Check API Publish'
+  displayName: 'Verify API Publish'
 
 
 
 # Zip API
 
 - task: ArchiveFiles@2
-  displayName: 'Zip BELMS.Api'
-
+  displayName: 'Create BELMS.Api.zip'
   inputs:
-
     rootFolderOrFile: '$(apiPublishDir)'
-
     includeRootFolder: false
-
-    archiveType: zip
-
+    archiveType: 'zip'
     archiveFile: '$(Build.ArtifactStagingDirectory)\BELMS.Api.zip'
-
     replaceExistingArchive: true
-
 
 
 
@@ -124,101 +108,62 @@ steps:
 # Publish Frontend
 
 - task: DotNetCoreCLI@2
-
   displayName: 'Publish BELMS.Frontend'
-
   inputs:
-
-    command: publish
-
+    command: 'publish'
     publishWebProjects: false
-
     projects: 'BELMS.Frontend/BELMS.Frontend.csproj'
-
-    arguments: >
-      --configuration $(buildConfiguration)
-      --output "$(frontendPublishDir)"
-
+    arguments: '--configuration $(buildConfiguration) --output "$(frontendPublishDir)"'
     zipAfterPublish: false
-
-
 
 
 
 # Zip Frontend
 
 - task: ArchiveFiles@2
-
-  displayName: 'Zip BELMS.Frontend'
-
+  displayName: 'Create BELMS.Frontend.zip'
   inputs:
-
     rootFolderOrFile: '$(frontendPublishDir)'
-
     includeRootFolder: false
-
-    archiveType: zip
-
+    archiveType: 'zip'
     archiveFile: '$(Build.ArtifactStagingDirectory)\BELMS.Frontend.zip'
-
     replaceExistingArchive: true
 
 
 
 
-
-# Create IIS Application Pools
+# Create IIS Pools
 
 - powershell: |
 
     Import-Module WebAdministration
 
 
-
-    # API Pool
-
     if (!(Test-Path "IIS:\AppPools\$(apiPoolName)")) {
 
-
-        New-WebAppPool `
-        -Name "$(apiPoolName)"
-
+        New-WebAppPool -Name "$(apiPoolName)"
 
         Set-ItemProperty `
         "IIS:\AppPools\$(apiPoolName)" `
         -Name managedRuntimeVersion `
         -Value ""
 
-
-        Write-Host "Created API Pool"
-
     }
-
-
-
-    # Frontend Pool
 
 
     if (!(Test-Path "IIS:\AppPools\$(frontendPoolName)")) {
 
-
-        New-WebAppPool `
-        -Name "$(frontendPoolName)"
-
+        New-WebAppPool -Name "$(frontendPoolName)"
 
         Set-ItemProperty `
         "IIS:\AppPools\$(frontendPoolName)" `
         -Name managedRuntimeVersion `
         -Value ""
 
-
-        Write-Host "Created Frontend Pool"
-
     }
 
 
-  displayName: 'Create IIS Pools'
-
+  displayName: 'Create IIS Application Pools'
 
 
 
@@ -230,29 +175,34 @@ steps:
     Import-Module WebAdministration
 
 
-
     Write-Host "Stopping API Pool"
 
 
-    if(Test-Path "IIS:\AppPools\$(apiPoolName)"){
-
-        Stop-WebAppPool "$(apiPoolName)"
-
-    }
+    Stop-WebAppPool "$(apiPoolName)"
 
 
+    Write-Host "Stopping dotnet processes"
 
-    if(!(Test-Path "$(apiDeployPath)")){
+
+    Get-Process dotnet -ErrorAction SilentlyContinue |
+    Stop-Process -Force
+
+
+    Start-Sleep -Seconds 5
+
+
+
+    if (!(Test-Path "$(apiDeployPath)")) {
 
         New-Item `
         -ItemType Directory `
-        -Path "$(apiDeployPath)"
+        -Path "$(apiDeployPath)" | Out-Null
 
     }
 
 
 
-    Write-Host "Cleaning API folder"
+    Write-Host "Cleaning API"
 
 
     Remove-Item "$(apiDeployPath)\*" `
@@ -262,21 +212,27 @@ steps:
 
 
 
-    Write-Host "Copying API files"
+    Write-Host "Copy API"
 
 
-
-    Copy-Item `
-    "$(apiPublishDir)\*" `
+    robocopy `
+    "$(apiPublishDir)" `
     "$(apiDeployPath)" `
-    -Recurse `
-    -Force
+    /MIR `
+    /R:3 `
+    /W:5
 
+
+
+    if ($LASTEXITCODE -gt 7) {
+
+        throw "API Copy Failed"
+
+    }
 
 
 
     Start-WebAppPool "$(apiPoolName)"
-
 
 
     Write-Host "API Deployment Completed"
@@ -287,9 +243,7 @@ steps:
 
 
 
-
 # Deploy Frontend
-
 
 - powershell: |
 
@@ -300,24 +254,21 @@ steps:
     Write-Host "Stopping Frontend Pool"
 
 
-
-    if(Test-Path "IIS:\AppPools\$(frontendPoolName)"){
-
-        Stop-WebAppPool "$(frontendPoolName)"
-
-    }
+    Stop-WebAppPool "$(frontendPoolName)"
 
 
 
-    if(!(Test-Path "$(frontendDeployPath)")){
-
+    if (!(Test-Path "$(frontendDeployPath)")) {
 
         New-Item `
         -ItemType Directory `
-        -Path "$(frontendDeployPath)"
+        -Path "$(frontendDeployPath)" | Out-Null
 
     }
 
+
+
+    Write-Host "Cleaning Frontend"
 
 
     Remove-Item "$(frontendDeployPath)\*" `
@@ -327,22 +278,31 @@ steps:
 
 
 
+    Write-Host "Copy Frontend"
 
-    Copy-Item `
-    "$(frontendPublishDir)\*" `
+
+
+    robocopy `
+    "$(frontendPublishDir)" `
     "$(frontendDeployPath)" `
-    -Recurse `
-    -Force
+    /MIR `
+    /R:3 `
+    /W:5
 
+
+
+    if ($LASTEXITCODE -gt 7) {
+
+        throw "Frontend Copy Failed"
+
+    }
 
 
 
     Start-WebAppPool "$(frontendPoolName)"
 
 
-
     Write-Host "Frontend Deployment Completed"
-
 
 
   displayName: 'Deploy BELMS.Frontend'
@@ -350,17 +310,11 @@ steps:
 
 
 
-
 # Publish Artifact
 
 - task: PublishBuildArtifacts@1
-
   displayName: 'Publish Release Artifact'
-
   inputs:
-
     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-
     ArtifactName: 'drop'
-
     publishLocation: 'Container'
