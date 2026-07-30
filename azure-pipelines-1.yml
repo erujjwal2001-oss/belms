@@ -3,97 +3,51 @@ trigger:
     include:
       - master
 
-
 pool:
   name: Default
   demands:
     - Agent.Name -equals nexa-belms
 
-
 variables:
-
   buildConfiguration: 'Release'
   dotnetSdkVersion: '10.0.x'
 
   apiPublishDir: '$(Build.ArtifactStagingDirectory)\BELMS.Api'
   frontendPublishDir: '$(Build.ArtifactStagingDirectory)\BELMS.Frontend'
 
-  apiDeployPath: 'C:\inetpub\wwwroot\BELMS.Api'
-  frontendDeployPath: 'C:\inetpub\wwwroot\BELMS.Frontend'
-
-  apiPoolName: 'BELMS.ApiPool'
-  frontendPoolName: 'BELMS.FrontendPool'
-
-
 steps:
-
-
-# Checkout
 
 - checkout: self
   clean: true
 
-
-
-# Install .NET SDK
-
 - task: UseDotNet@2
   displayName: 'Install .NET SDK'
   inputs:
-    packageType: 'sdk'
+    packageType: sdk
     version: '$(dotnetSdkVersion)'
     includePreviewVersions: true
-
-
-
-# Restore
 
 - task: DotNetCoreCLI@2
   displayName: 'Restore Solution'
   inputs:
-    command: 'restore'
+    command: restore
     projects: 'BELMS.slnx'
-
-
-
-# Build
 
 - task: DotNetCoreCLI@2
   displayName: 'Build Solution'
   inputs:
-    command: 'build'
+    command: build
     projects: 'BELMS.slnx'
     arguments: '--configuration $(buildConfiguration)'
-
-
-
-# Publish API
 
 - task: DotNetCoreCLI@2
   displayName: 'Publish BELMS.Api'
   inputs:
-    command: 'publish'
+    command: publish
     publishWebProjects: false
     projects: 'BELMS.Api/BELMS.Api.csproj'
     arguments: '--configuration $(buildConfiguration) --output "$(apiPublishDir)"'
     zipAfterPublish: false
-
-
-
-# Verify API Publish
-
-- powershell: |
-
-    Write-Host "API Publish Content"
-
-    Get-ChildItem "$(apiPublishDir)"
-
-
-  displayName: 'Verify API Publish'
-
-
-
-# Zip API
 
 - task: ArchiveFiles@2
   displayName: 'Create API ZIP'
@@ -104,22 +58,14 @@ steps:
     archiveFile: '$(Build.ArtifactStagingDirectory)\BELMS.Api.zip'
     replaceExistingArchive: true
 
-
-
-# Publish Frontend
-
 - task: DotNetCoreCLI@2
   displayName: 'Publish BELMS.Frontend'
   inputs:
-    command: 'publish'
+    command: publish
     publishWebProjects: false
     projects: 'BELMS.Frontend/BELMS.Frontend.csproj'
     arguments: '--configuration $(buildConfiguration) --output "$(frontendPublishDir)"'
     zipAfterPublish: false
-
-
-
-# Zip Frontend
 
 - task: ArchiveFiles@2
   displayName: 'Create Frontend ZIP'
@@ -130,115 +76,8 @@ steps:
     archiveFile: '$(Build.ArtifactStagingDirectory)\BELMS.Frontend.zip'
     replaceExistingArchive: true
 
-
-
-
-# Create IIS Application Pools
-- powershell: |
-
-    Import-Module WebAdministration
-
-    # Create API Pool
-    if (!(Test-Path IIS:\AppPools\BELMS.ApiPool)) {
-        New-WebAppPool -Name "BELMS.ApiPool"
-        Set-ItemProperty `
-        IIS:\AppPools\BELMS.ApiPool `
-        -Name managedRuntimeVersion `
-        -Value ""
-
-        Write-Host "Created BELMS.ApiPool"
-    }
-
-    # Create Frontend Pool
-    if (!(Test-Path IIS:\AppPools\BELMS.FrontendPool)) {
-        New-WebAppPool -Name "BELMS.FrontendPool"
-        Set-ItemProperty `
-        IIS:\AppPools\BELMS.FrontendPool `
-        -Name managedRuntimeVersion `
-        -Value ""
-        Write-Host "Created BELMS.FrontendPool"
-    }
-
-  displayName: 'Create IIS Application Pools'
-
-  
-# Deploy API
-- powershell: |
-
-    Import-Module WebAdministration
-
-
-    Stop-WebAppPool "BELMS.ApiPool"
-
-
-    if (!(Test-Path "$(apiDeployPath)")) {
-        New-Item `
-        -ItemType Directory `
-        -Path "$(apiDeployPath)"
-    }
-
-
-    Remove-Item "$(apiDeployPath)\*" `
-    -Recurse `
-    -Force `
-    -ErrorAction SilentlyContinue
-
-
-    Copy-Item `
-    "$(apiPublishDir)\*" `
-    "$(apiDeployPath)" `
-    -Recurse `
-    -Force
-
-
-    Start-WebAppPool "BELMS.ApiPool"
-
-
-    Write-Host "API Deployment Completed"
-
-
-  displayName: 'Deploy BELMS.Api IIS'
-
-
-
-
-# Deploy Frontend
-
-- powershell: |
-
-    Import-Module WebAdministration
-    Stop-WebAppPool "BELMS.FrontendPool"
-    if (!(Test-Path "$(frontendDeployPath)")) {
-
-        New-Item `
-        -ItemType Directory `
-        -Path "$(frontendDeployPath)"
-
-    }
-
-    Remove-Item "$(frontendDeployPath)\*" `
-    -Recurse `
-    -Force `
-    -ErrorAction SilentlyContinue
-
-    Copy-Item `
-    "$(frontendPublishDir)\*" `
-    "$(frontendDeployPath)" `
-    -Recurse `
-    -Force
-
-    Start-WebAppPool "BELMS.FrontendPool"
-    Write-Host "Frontend Deployment Completed"
-
-  displayName: 'Deploy BELMS.Frontend IIS'
-
-
-
-
-# Publish Artifact
-
 - task: PublishBuildArtifacts@1
-  displayName: 'Publish Drop Artifact'
+  displayName: 'Publish Build Artifacts'
   inputs:
     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
     ArtifactName: 'drop'
